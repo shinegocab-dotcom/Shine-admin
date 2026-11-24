@@ -1,0 +1,535 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 4.1: Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Pillar 3: Global hardened primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && request.auth.token.email == 'ma94646445@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/admin_users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.isActive == true
+      );
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Validation Helpers (Pillar 2 - Anti-Update-Gap)
+    function isValidProfile(data) {
+      return data.keys().hasAll(['uid', 'fullName', 'userType', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'fullName', 'email', 'phone', 'userType', 'city', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120
+        && (!('email' in data) || (data.email is string && data.email.size() <= 180))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 20))
+        && (!('city' in data) || (data.city is string && data.city.size() <= 80))
+        && data.userType in ['customer', 'driver', 'admin']
+        && data.status in ['active', 'suspended', 'blocked', 'pending']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['profileId', 'fullName', 'phone', 'city', 'kycStatus', 'walletBalance', 'totalRides', 'isBlocked', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['profileId', 'fullName', 'phone', 'email', 'city', 'kycStatus', 'walletBalance', 'totalRides', 'rating', 'isBlocked', 'blockReason', 'createdAt', 'updatedAt'])
+        && isValidId(data.profileId)
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120
+        && data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 20
+        && (!('email' in data) || (data.email is string && data.email.size() <= 180))
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && data.kycStatus in ['pending', 'verified', 'rejected']
+        && data.walletBalance is number
+        && data.totalRides is number
+        && (!('rating' in data) || data.rating is number)
+        && data.isBlocked is bool
+        && (!('blockReason' in data) || (data.blockReason is string && data.blockReason.size() <= 300))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDriver(data) {
+      return data.keys().hasAll(['profileId', 'fullName', 'phone', 'city', 'vehicleCategory', 'applicationStatus', 'kycStatus', 'isOnline', 'isBlocked', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['profileId', 'fullName', 'phone', 'city', 'vehicleCategory', 'applicationStatus', 'kycStatus', 'dlStatus', 'rcStatus', 'insuranceStatus', 'isOnline', 'isBlocked', 'blockReason', 'rating', 'totalRides', 'walletBalance', 'totalEarnings', 'commissionPct', 'createdAt', 'updatedAt'])
+        && isValidId(data.profileId)
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120
+        && data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 20
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && data.vehicleCategory in ['bike', 'auto', 'cab']
+        && data.applicationStatus in ['pending', 'under_review', 'approved', 'rejected']
+        && data.kycStatus in ['pending', 'verified', 'rejected']
+        && (!('dlStatus' in data) || data.dlStatus in ['pending', 'verified', 'rejected'])
+        && (!('rcStatus' in data) || data.rcStatus in ['pending', 'verified', 'rejected'])
+        && (!('insuranceStatus' in data) || data.insuranceStatus in ['pending', 'verified', 'rejected'])
+        && data.isOnline is bool
+        && data.isBlocked is bool
+        && (!('blockReason' in data) || (data.blockReason is string && data.blockReason.size() <= 300))
+        && (!('rating' in data) || data.rating is number)
+        && (!('totalRides' in data) || data.totalRides is number)
+        && (!('walletBalance' in data) || data.walletBalance is number)
+        && (!('totalEarnings' in data) || data.totalEarnings is number)
+        && (!('commissionPct' in data) || data.commissionPct is number)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidVehicle(data) {
+      return data.keys().hasAll(['driverId', 'category', 'make', 'model', 'plateNumber', 'city', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['driverId', 'category', 'make', 'model', 'plateNumber', 'city', 'rcStatus', 'insuranceStatus', 'isActive', 'createdAt', 'updatedAt'])
+        && isValidId(data.driverId)
+        && data.category in ['bike', 'auto', 'cab']
+        && data.make is string && data.make.size() >= 1 && data.make.size() <= 80
+        && data.model is string && data.model.size() >= 1 && data.model.size() <= 80
+        && data.plateNumber is string && data.plateNumber.size() >= 4 && data.plateNumber.size() <= 24
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && (!('rcStatus' in data) || data.rcStatus in ['pending', 'verified', 'rejected'])
+        && (!('insuranceStatus' in data) || data.insuranceStatus in ['pending', 'verified', 'rejected'])
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDriverDocument(data) {
+      return data.keys().hasAll(['driverId', 'docType', 'docNumber', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['driverId', 'docType', 'docNumber', 'status', 'expiryDate', 'rejectionReason', 'verifiedBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.driverId)
+        && data.docType in ['kyc_aadhaar_pan', 'driving_licence', 'vehicle_rc', 'vehicle_insurance']
+        && data.docNumber is string && data.docNumber.size() >= 3 && data.docNumber.size() <= 64
+        && data.status in ['pending', 'verified', 'rejected']
+        && (!('expiryDate' in data) || (data.expiryDate is string && data.expiryDate.size() <= 32))
+        && (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() <= 300))
+        && (!('verifiedBy' in data) || (data.verifiedBy is string && data.verifiedBy.size() <= 128))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRide(data) {
+      return data.keys().hasAll(['customerId', 'vehicleCategory', 'city', 'status', 'pickupAddress', 'dropAddress', 'finalFare', 'paymentMethod', 'paymentStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['customerId', 'driverId', 'vehicleCategory', 'city', 'status', 'pickupAddress', 'pickupLat', 'pickupLng', 'dropAddress', 'dropLat', 'dropLng', 'distanceKm', 'durationMin', 'otpCode', 'finalFare', 'commissionAmount', 'driverPayoutAmount', 'paymentMethod', 'paymentStatus', 'cancellationReason', 'createdAt', 'updatedAt'])
+        && isValidId(data.customerId)
+        && (!('driverId' in data) || (data.driverId is string && data.driverId.size() <= 128))
+        && data.vehicleCategory in ['bike', 'auto', 'cab']
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && data.status in ['requested', 'searching_driver', 'driver_assigned', 'driver_arrived', 'otp_verified', 'ride_started', 'ride_completed', 'payment_completed', 'cancelled_by_customer', 'cancelled_by_driver', 'cancelled_by_admin']
+        && data.pickupAddress is string && data.pickupAddress.size() >= 1 && data.pickupAddress.size() <= 300
+        && data.dropAddress is string && data.dropAddress.size() >= 1 && data.dropAddress.size() <= 300
+        && (!('pickupLat' in data) || data.pickupLat is number)
+        && (!('pickupLng' in data) || data.pickupLng is number)
+        && (!('dropLat' in data) || data.dropLat is number)
+        && (!('dropLng' in data) || data.dropLng is number)
+        && (!('distanceKm' in data) || data.distanceKm is number)
+        && (!('durationMin' in data) || data.durationMin is number)
+        && (!('otpCode' in data) || (data.otpCode is string && data.otpCode.size() <= 8))
+        && data.finalFare is number && data.finalFare >= 0
+        && (!('commissionAmount' in data) || data.commissionAmount is number)
+        && (!('driverPayoutAmount' in data) || data.driverPayoutAmount is number)
+        && data.paymentMethod in ['cash', 'upi', 'online', 'wallet']
+        && data.paymentStatus in ['pending', 'verified', 'failed', 'refunded']
+        && (!('cancellationReason' in data) || (data.cancellationReason is string && data.cancellationReason.size() <= 300))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRideEvent(data) {
+      return data.keys().hasAll(['rideId', 'toStatus', 'actorUid', 'createdAt'])
+        && data.keys().hasOnly(['rideId', 'fromStatus', 'toStatus', 'actorUid', 'note', 'createdAt'])
+        && isValidId(data.rideId)
+        && (!('fromStatus' in data) || (data.fromStatus is string && data.fromStatus.size() <= 64))
+        && data.toStatus is string && data.toStatus.size() >= 1 && data.toStatus.size() <= 64
+        && isValidId(data.actorUid)
+        && (!('note' in data) || (data.note is string && data.note.size() <= 300))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidDriverLocation(data) {
+      return data.keys().hasAll(['driverId', 'lat', 'lng', 'isAuthorized', 'isOnline', 'updatedAt'])
+        && data.keys().hasOnly(['driverId', 'lat', 'lng', 'heading', 'speedKmh', 'isAuthorized', 'isOnline', 'activeRideId', 'updatedAt'])
+        && isValidId(data.driverId)
+        && data.lat is number && data.lat >= -90 && data.lat <= 90
+        && data.lng is number && data.lng >= -180 && data.lng <= 180
+        && (!('heading' in data) || data.heading is number)
+        && (!('speedKmh' in data) || data.speedKmh is number)
+        && data.isAuthorized is bool
+        && data.isOnline is bool
+        && (!('activeRideId' in data) || (data.activeRideId is string && data.activeRideId.size() <= 128))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFareConfig(data) {
+      return data.keys().hasAll(['city', 'vehicleCategory', 'baseFare', 'minimumFare', 'perKmRate', 'perMinuteRate', 'waitingChargePerMin', 'surgeMultiplier', 'cancellationFee', 'commissionPct', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['city', 'vehicleCategory', 'baseFare', 'minimumFare', 'perKmRate', 'perMinuteRate', 'waitingChargePerMin', 'surgeMultiplier', 'cancellationFee', 'commissionPct', 'effectiveFrom', 'isActive', 'updatedBy', 'createdAt', 'updatedAt'])
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && data.vehicleCategory in ['bike', 'auto', 'cab']
+        && data.baseFare is number && data.baseFare >= 0
+        && data.minimumFare is number && data.minimumFare >= 0
+        && data.perKmRate is number && data.perKmRate >= 0
+        && data.perMinuteRate is number && data.perMinuteRate >= 0
+        && data.waitingChargePerMin is number && data.waitingChargePerMin >= 0
+        && data.surgeMultiplier is number && data.surgeMultiplier >= 1 && data.surgeMultiplier <= 5
+        && data.cancellationFee is number && data.cancellationFee >= 0
+        && data.commissionPct is number && data.commissionPct >= 0 && data.commissionPct <= 50
+        && (!('effectiveFrom' in data) || (data.effectiveFrom is string && data.effectiveFrom.size() <= 40))
+        && (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy.size() <= 128))
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll(['rideId', 'customerId', 'amount', 'method', 'status', 'verifiedByProvider', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['rideId', 'customerId', 'amount', 'method', 'status', 'provider', 'providerTxId', 'verifiedByProvider', 'createdAt', 'updatedAt'])
+        && isValidId(data.rideId)
+        && isValidId(data.customerId)
+        && data.amount is number && data.amount >= 0
+        && data.method in ['cash', 'upi', 'online', 'wallet']
+        && data.status in ['pending', 'succeeded', 'failed', 'refunded']
+        && (!('provider' in data) || (data.provider is string && data.provider.size() <= 64))
+        && (!('providerTxId' in data) || (data.providerTxId is string && data.providerTxId.size() <= 128))
+        && data.verifiedByProvider is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWalletTransaction(data) {
+      return data.keys().hasAll(['ownerId', 'ownerType', 'amount', 'direction', 'reason', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'ownerType', 'amount', 'direction', 'reason', 'referenceId', 'createdBy', 'createdAt'])
+        && isValidId(data.ownerId)
+        && data.ownerType in ['customer', 'driver']
+        && data.amount is number && data.amount > 0
+        && data.direction in ['credit', 'debit']
+        && data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 200
+        && (!('referenceId' in data) || (data.referenceId is string && data.referenceId.size() <= 128))
+        && (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() <= 128))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidPayout(data) {
+      return data.keys().hasAll(['driverId', 'amount', 'status', 'bankAccountMask', 'verifiedByProvider', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['driverId', 'amount', 'status', 'bankAccountMask', 'ifscCode', 'providerPayoutId', 'verifiedByProvider', 'createdAt', 'updatedAt'])
+        && isValidId(data.driverId)
+        && data.amount is number && data.amount > 0
+        && data.status in ['pending', 'processing', 'succeeded', 'failed', 'rejected']
+        && data.bankAccountMask is string && data.bankAccountMask.size() >= 4 && data.bankAccountMask.size() <= 32
+        && (!('ifscCode' in data) || (data.ifscCode is string && data.ifscCode.size() >= 4 && data.ifscCode.size() <= 20))
+        && (!('providerPayoutId' in data) || (data.providerPayoutId is string && data.providerPayoutId.size() <= 128))
+        && data.verifiedByProvider is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCoupon(data) {
+      return data.keys().hasAll(['code', 'title', 'discountType', 'discountValue', 'vehicleCategory', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['code', 'title', 'discountType', 'discountValue', 'maxDiscount', 'minFare', 'vehicleCategory', 'city', 'usageLimit', 'usedCount', 'isActive', 'createdAt', 'updatedAt'])
+        && data.code is string && data.code.size() >= 3 && data.code.size() <= 32
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.discountType in ['percentage', 'flat']
+        && data.discountValue is number && data.discountValue > 0
+        && (!('maxDiscount' in data) || data.maxDiscount is number)
+        && (!('minFare' in data) || data.minFare is number)
+        && data.vehicleCategory in ['all', 'bike', 'auto', 'cab']
+        && (!('city' in data) || (data.city is string && data.city.size() <= 80))
+        && (!('usageLimit' in data) || data.usageLimit is number)
+        && (!('usedCount' in data) || data.usedCount is number)
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSupportTicket(data) {
+      return data.keys().hasAll(['userId', 'userType', 'category', 'priority', 'status', 'subject', 'description', 'isSos', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'userType', 'rideId', 'category', 'priority', 'status', 'subject', 'description', 'isSos', 'resolutionNote', 'createdAt', 'updatedAt'])
+        && isValidId(data.userId)
+        && data.userType in ['customer', 'driver']
+        && (!('rideId' in data) || (data.rideId is string && data.rideId.size() <= 128))
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 64
+        && data.priority in ['low', 'medium', 'high', 'critical']
+        && data.status in ['open', 'in_progress', 'resolved', 'escalated']
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 160
+        && data.description is string && data.description.size() >= 1 && data.description.size() <= 1000
+        && data.isSos is bool
+        && (!('resolutionNote' in data) || (data.resolutionNote is string && data.resolutionNote.size() <= 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['targetAudience', 'title', 'body', 'channel', 'status', 'createdAt'])
+        && data.keys().hasOnly(['targetAudience', 'title', 'body', 'channel', 'campaignName', 'status', 'sentBy', 'createdAt'])
+        && data.targetAudience in ['customers', 'drivers', 'all']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.body is string && data.body.size() >= 1 && data.body.size() <= 500
+        && data.channel in ['push', 'in_app', 'sms']
+        && (!('campaignName' in data) || (data.campaignName is string && data.campaignName.size() <= 120))
+        && data.status in ['draft', 'queued', 'dispatched', 'provider_not_configured']
+        && (!('sentBy' in data) || (data.sentBy is string && data.sentBy.size() <= 128))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidServiceZone(data) {
+      return data.keys().hasAll(['city', 'zoneName', 'state', 'isActive', 'bikeEnabled', 'autoEnabled', 'cabEnabled', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['city', 'zoneName', 'state', 'isActive', 'bikeEnabled', 'autoEnabled', 'cabEnabled', 'centerLat', 'centerLng', 'radiusKm', 'createdAt', 'updatedAt'])
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && data.zoneName is string && data.zoneName.size() >= 1 && data.zoneName.size() <= 120
+        && data.state is string && data.state.size() >= 1 && data.state.size() <= 80
+        && data.isActive is bool
+        && data.bikeEnabled is bool
+        && data.autoEnabled is bool
+        && data.cabEnabled is bool
+        && (!('centerLat' in data) || data.centerLat is number)
+        && (!('centerLng' in data) || data.centerLng is number)
+        && (!('radiusKm' in data) || data.radiusKm is number)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'fullName', 'roleId', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'fullName', 'roleId', 'isActive', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 180
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120
+        && data.roleId in ['super_admin', 'operations_admin', 'kyc_admin', 'finance_admin', 'support_admin', 'marketing_admin', 'read_only_admin']
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRole(data) {
+      return data.keys().hasAll(['name', 'label', 'permissions', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'label', 'description', 'permissions', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 64
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 80
+        && (!('description' in data) || (data.description is string && data.description.size() <= 300))
+        && data.permissions is list && data.permissions.size() <= 100 && (data.permissions.size() == 0 || data.permissions[0] is string)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorUid', 'actorRole', 'action', 'entityType', 'entityId', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorEmail', 'actorRole', 'action', 'entityType', 'entityId', 'summary', 'createdAt'])
+        && isValidId(data.actorUid)
+        && (!('actorEmail' in data) || (data.actorEmail is string && data.actorEmail.size() <= 180))
+        && data.actorRole is string && data.actorRole.size() >= 1 && data.actorRole.size() <= 64
+        && data.action is string && data.action.size() >= 1 && data.action.size() <= 120
+        && data.entityType is string && data.entityType.size() >= 1 && data.entityType.size() <= 64
+        && isValidId(data.entityId)
+        && (!('summary' in data) || (data.summary is string && data.summary.size() <= 500))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSystemSetting(data) {
+      return data.keys().hasAll(['key', 'value', 'category', 'updatedAt'])
+        && data.keys().hasOnly(['key', 'value', 'category', 'updatedBy', 'updatedAt'])
+        && data.key is string && data.key.size() >= 1 && data.key.size() <= 100
+        && data.value is string && data.value.size() <= 1000
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 64
+        && (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy.size() <= 128))
+        && data.updatedAt is timestamp;
+    }
+
+    // Connection check doc
+    match /test/{docId} {
+      allow get: if isValidId(docId) && isSignedIn();
+    }
+
+    // 1. Profiles (PII protected)
+    match /profiles/{profileId} {
+      allow get: if isValidId(profileId) && (isAdmin() || isOwner(profileId));
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(profileId) && isAdmin() && isValidProfile(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(profileId) && isAdmin() && isValidProfile(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'city', 'status', 'updatedAt']);
+      allow delete: if isValidId(profileId) && isBootstrappedAdmin();
+    }
+
+    // 2. Customers
+    match /customers/{customerId} {
+      allow get: if isValidId(customerId) && (isAdmin() || isOwner(customerId));
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(customerId) && isAdmin() && isValidCustomer(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(customerId) && isAdmin() && isValidCustomer(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'email', 'city', 'kycStatus', 'walletBalance', 'totalRides', 'rating', 'isBlocked', 'blockReason', 'updatedAt']);
+      allow delete: if isValidId(customerId) && isBootstrappedAdmin();
+    }
+
+    // 3. Drivers
+    match /drivers/{driverId} {
+      allow get: if isValidId(driverId) && (isAdmin() || isOwner(driverId));
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(driverId) && isAdmin() && isValidDriver(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(driverId) && isAdmin() && isValidDriver(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'city', 'vehicleCategory', 'applicationStatus', 'kycStatus', 'dlStatus', 'rcStatus', 'insuranceStatus', 'isOnline', 'isBlocked', 'blockReason', 'rating', 'totalRides', 'walletBalance', 'totalEarnings', 'commissionPct', 'updatedAt']);
+      allow delete: if isValidId(driverId) && isBootstrappedAdmin();
+    }
+
+    // 4. Vehicles
+    match /vehicles/{vehicleId} {
+      allow get: if isValidId(vehicleId) && (isAdmin() || (isSignedIn() && existing().driverId == request.auth.uid));
+      allow list: if isBootstrappedAdmin() || (isSignedIn() && resource.data.driverId == request.auth.uid);
+      allow create: if isValidId(vehicleId) && isAdmin() && isValidVehicle(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(vehicleId) && isAdmin() && isValidVehicle(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['category', 'make', 'model', 'plateNumber', 'city', 'rcStatus', 'insuranceStatus', 'isActive', 'updatedAt']);
+      allow delete: if isValidId(vehicleId) && isBootstrappedAdmin();
+    }
+
+    // 5. Driver Documents
+    match /driver_documents/{documentId} {
+      allow get: if isValidId(documentId) && (isAdmin() || (isSignedIn() && existing().driverId == request.auth.uid));
+      allow list: if isBootstrappedAdmin() || (isSignedIn() && resource.data.driverId == request.auth.uid);
+      allow create: if isValidId(documentId) && isAdmin() && isValidDriverDocument(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(documentId) && isAdmin() && isValidDriverDocument(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['docNumber', 'status', 'expiryDate', 'rejectionReason', 'verifiedBy', 'updatedAt']);
+      allow delete: if isValidId(documentId) && isBootstrappedAdmin();
+    }
+
+    // 6. Rides
+    match /rides/{rideId} {
+      allow get: if isValidId(rideId) && (isAdmin() || (isSignedIn() && (existing().customerId == request.auth.uid || existing().driverId == request.auth.uid)));
+      allow list: if isBootstrappedAdmin() || (isSignedIn() && (resource.data.customerId == request.auth.uid || resource.data.driverId == request.auth.uid));
+      allow create: if isValidId(rideId) && isAdmin() && isValidRide(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(rideId) && isAdmin() && isValidRide(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['driverId', 'status', 'otpCode', 'distanceKm', 'durationMin', 'finalFare', 'commissionAmount', 'driverPayoutAmount', 'paymentStatus', 'cancellationReason', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 7. Ride Events (Immutable append-only)
+    match /ride_events/{eventId} {
+      allow get: if isValidId(eventId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(eventId) && isAdmin() && isValidRideEvent(incoming()) && incoming().actorUid == request.auth.uid && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // 8. Driver Locations (Authorized live telemetry)
+    match /driver_locations/{driverId} {
+      allow get: if isValidId(driverId) && (isAdmin() || isOwner(driverId));
+      allow list: if isBootstrappedAdmin();
+      allow create, update: if isValidId(driverId) && isAdmin() && isValidDriverLocation(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if isValidId(driverId) && isAdmin();
+    }
+
+    // 9. Fare Configs
+    match /fare_configs/{configId} {
+      allow get: if isValidId(configId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(configId) && isAdmin() && isValidFareConfig(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(configId) && isAdmin() && isValidFareConfig(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['baseFare', 'minimumFare', 'perKmRate', 'perMinuteRate', 'waitingChargePerMin', 'surgeMultiplier', 'cancellationFee', 'commissionPct', 'effectiveFrom', 'isActive', 'updatedBy', 'updatedAt']);
+      allow delete: if isValidId(configId) && isBootstrappedAdmin();
+    }
+
+    // 10. Payments
+    match /payments/{paymentId} {
+      allow get: if isValidId(paymentId) && (isAdmin() || (isSignedIn() && existing().customerId == request.auth.uid));
+      allow list: if isBootstrappedAdmin() || (isSignedIn() && resource.data.customerId == request.auth.uid);
+      allow create: if isValidId(paymentId) && isAdmin() && isValidPayment(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(paymentId) && isAdmin() && isValidPayment(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'provider', 'providerTxId', 'verifiedByProvider', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 11. Wallet Transactions (Append-only ledger)
+    match /wallet_transactions/{txId} {
+      allow get: if isValidId(txId) && (isAdmin() || (isSignedIn() && existing().ownerId == request.auth.uid));
+      allow list: if isBootstrappedAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if isValidId(txId) && isAdmin() && isValidWalletTransaction(incoming()) && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // 12. Driver Payouts
+    match /payouts/{payoutId} {
+      allow get: if isValidId(payoutId) && (isAdmin() || (isSignedIn() && existing().driverId == request.auth.uid));
+      allow list: if isBootstrappedAdmin() || (isSignedIn() && resource.data.driverId == request.auth.uid);
+      allow create: if isValidId(payoutId) && isAdmin() && isValidPayout(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(payoutId) && isAdmin() && isValidPayout(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'providerPayoutId', 'verifiedByProvider', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 13. Coupons
+    match /coupons/{couponId} {
+      allow get: if isValidId(couponId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(couponId) && isAdmin() && isValidCoupon(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(couponId) && isAdmin() && isValidCoupon(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'discountType', 'discountValue', 'maxDiscount', 'minFare', 'vehicleCategory', 'city', 'usageLimit', 'usedCount', 'isActive', 'updatedAt']);
+      allow delete: if isValidId(couponId) && isBootstrappedAdmin();
+    }
+
+    // 14. Support Tickets & SOS
+    match /support_tickets/{ticketId} {
+      allow get: if isValidId(ticketId) && (isAdmin() || (isSignedIn() && existing().userId == request.auth.uid));
+      allow list: if isBootstrappedAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(ticketId) && isAdmin() && isValidSupportTicket(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(ticketId) && isAdmin() && isValidSupportTicket(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['priority', 'status', 'resolutionNote', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 15. Notifications & Push Campaigns
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(notificationId) && isAdmin() && isValidNotification(incoming()) && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // 16. Service Zones
+    match /service_zones/{zoneId} {
+      allow get: if isValidId(zoneId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(zoneId) && isAdmin() && isValidServiceZone(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(zoneId) && isAdmin() && isValidServiceZone(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['zoneName', 'state', 'isActive', 'bikeEnabled', 'autoEnabled', 'cabEnabled', 'centerLat', 'centerLng', 'radiusKm', 'updatedAt']);
+      allow delete: if isValidId(zoneId) && isBootstrappedAdmin();
+    }
+
+    // 17. Admin Users (Prevent privilege escalation: only Super Admin can create/modify admin users, except bootstrapped owner bootstrap)
+    match /admin_users/{adminId} {
+      allow get: if isValidId(adminId) && (isBootstrappedAdmin() || isOwner(adminId));
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(adminId) && isBootstrappedAdmin() && isValidAdminUser(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(adminId) && isBootstrappedAdmin() && isValidAdminUser(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'roleId', 'isActive', 'updatedAt']);
+      allow delete: if isValidId(adminId) && isBootstrappedAdmin();
+    }
+
+    // 18. RBAC Roles
+    match /roles/{roleId} {
+      allow get: if isValidId(roleId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(roleId) && isBootstrappedAdmin() && isValidRole(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(roleId) && isBootstrappedAdmin() && isValidRole(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['label', 'description', 'permissions', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 19. Audit Logs (Immutable append-only)
+    match /audit_logs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(logId) && isAdmin() && isValidAuditLog(incoming()) && incoming().actorUid == request.auth.uid && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // 20. System Settings
+    match /system_settings/{settingId} {
+      allow get: if isValidId(settingId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create, update: if isValidId(settingId) && isBootstrappedAdmin() && isValidSystemSetting(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+  }
+}

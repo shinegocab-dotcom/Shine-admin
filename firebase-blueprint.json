@@ -1,0 +1,401 @@
+{
+  "entities": {
+    "Profile": {
+      "title": "Profile",
+      "description": "Shared identity profile across Customer App, Driver App, and Super Admin.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 180 },
+        "phone": { "type": "string", "minLength": 7, "maxLength": 20 },
+        "userType": { "type": "string", "enum": ["customer", "driver", "admin"] },
+        "city": { "type": "string", "maxLength": 80 },
+        "status": { "type": "string", "enum": ["active", "suspended", "blocked", "pending"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "userType", "status", "createdAt", "updatedAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Customer account state, verification, wallet balance, and block flags.",
+      "type": "object",
+      "properties": {
+        "profileId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "phone": { "type": "string", "minLength": 7, "maxLength": 20 },
+        "email": { "type": "string", "maxLength": 180 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "kycStatus": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "walletBalance": { "type": "number" },
+        "totalRides": { "type": "number" },
+        "rating": { "type": "number" },
+        "isBlocked": { "type": "boolean" },
+        "blockReason": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["profileId", "fullName", "phone", "city", "kycStatus", "walletBalance", "totalRides", "isBlocked", "createdAt", "updatedAt"]
+    },
+    "Driver": {
+      "title": "Driver",
+      "description": "Driver onboarding, KYC status, approval state, ride eligibility, and earnings summary.",
+      "type": "object",
+      "properties": {
+        "profileId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "phone": { "type": "string", "minLength": 7, "maxLength": 20 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "vehicleCategory": { "type": "string", "enum": ["bike", "auto", "cab"] },
+        "applicationStatus": { "type": "string", "enum": ["pending", "under_review", "approved", "rejected"] },
+        "kycStatus": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "dlStatus": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "rcStatus": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "insuranceStatus": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "isOnline": { "type": "boolean" },
+        "isBlocked": { "type": "boolean" },
+        "blockReason": { "type": "string", "maxLength": 300 },
+        "rating": { "type": "number" },
+        "totalRides": { "type": "number" },
+        "walletBalance": { "type": "number" },
+        "totalEarnings": { "type": "number" },
+        "commissionPct": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["profileId", "fullName", "phone", "city", "vehicleCategory", "applicationStatus", "kycStatus", "isOnline", "isBlocked", "createdAt", "updatedAt"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Registered Bike, Auto, and Cab fleet entities.",
+      "type": "object",
+      "properties": {
+        "driverId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "category": { "type": "string", "enum": ["bike", "auto", "cab"] },
+        "make": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "model": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "plateNumber": { "type": "string", "minLength": 4, "maxLength": 24 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "rcStatus": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "insuranceStatus": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["driverId", "category", "make", "model", "plateNumber", "city", "isActive", "createdAt", "updatedAt"]
+    },
+    "DriverDocument": {
+      "title": "DriverDocument",
+      "description": "Driver KYC, Driving Licence, RC, and Insurance verification records.",
+      "type": "object",
+      "properties": {
+        "driverId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "docType": { "type": "string", "enum": ["kyc_aadhaar_pan", "driving_licence", "vehicle_rc", "vehicle_insurance"] },
+        "docNumber": { "type": "string", "minLength": 3, "maxLength": 64 },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "expiryDate": { "type": "string", "maxLength": 32 },
+        "rejectionReason": { "type": "string", "maxLength": 300 },
+        "verifiedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["driverId", "docType", "docNumber", "status", "createdAt", "updatedAt"]
+    },
+    "Ride": {
+      "title": "Ride",
+      "description": "Full ride lifecycle record with immutable fare snapshot.",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "driverId": { "type": "string", "maxLength": 128 },
+        "vehicleCategory": { "type": "string", "enum": ["bike", "auto", "cab"] },
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "status": {
+          "type": "string",
+          "enum": ["requested", "searching_driver", "driver_assigned", "driver_arrived", "otp_verified", "ride_started", "ride_completed", "payment_completed", "cancelled_by_customer", "cancelled_by_driver", "cancelled_by_admin"]
+        },
+        "pickupAddress": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "pickupLat": { "type": "number" },
+        "pickupLng": { "type": "number" },
+        "dropAddress": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "dropLat": { "type": "number" },
+        "dropLng": { "type": "number" },
+        "distanceKm": { "type": "number" },
+        "durationMin": { "type": "number" },
+        "otpCode": { "type": "string", "maxLength": 8 },
+        "finalFare": { "type": "number" },
+        "commissionAmount": { "type": "number" },
+        "driverPayoutAmount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["cash", "upi", "online", "wallet"] },
+        "paymentStatus": { "type": "string", "enum": ["pending", "verified", "failed", "refunded"] },
+        "cancellationReason": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "vehicleCategory", "city", "status", "pickupAddress", "dropAddress", "finalFare", "paymentMethod", "paymentStatus", "createdAt", "updatedAt"]
+    },
+    "RideEvent": {
+      "title": "RideEvent",
+      "description": "Immutable ride state transition audit trail.",
+      "type": "object",
+      "properties": {
+        "rideId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fromStatus": { "type": "string", "maxLength": 64 },
+        "toStatus": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "note": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["rideId", "toStatus", "actorUid", "createdAt"]
+    },
+    "DriverLocation": {
+      "title": "DriverLocation",
+      "description": "Real-time authorized GPS location reported by Driver App.",
+      "type": "object",
+      "properties": {
+        "driverId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "heading": { "type": "number" },
+        "speedKmh": { "type": "number" },
+        "isAuthorized": { "type": "boolean" },
+        "isOnline": { "type": "boolean" },
+        "activeRideId": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["driverId", "lat", "lng", "isAuthorized", "isOnline", "updatedAt"]
+    },
+    "FareConfig": {
+      "title": "FareConfig",
+      "description": "City and vehicle-category fare and commission rule.",
+      "type": "object",
+      "properties": {
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "vehicleCategory": { "type": "string", "enum": ["bike", "auto", "cab"] },
+        "baseFare": { "type": "number" },
+        "minimumFare": { "type": "number" },
+        "perKmRate": { "type": "number" },
+        "perMinuteRate": { "type": "number" },
+        "waitingChargePerMin": { "type": "number" },
+        "surgeMultiplier": { "type": "number" },
+        "cancellationFee": { "type": "number" },
+        "commissionPct": { "type": "number" },
+        "effectiveFrom": { "type": "string", "maxLength": 40 },
+        "isActive": { "type": "boolean" },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["city", "vehicleCategory", "baseFare", "minimumFare", "perKmRate", "perMinuteRate", "waitingChargePerMin", "surgeMultiplier", "cancellationFee", "commissionPct", "isActive", "createdAt", "updatedAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Ride payment ledger entry requiring provider/backend verification.",
+      "type": "object",
+      "properties": {
+        "rideId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "customerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["cash", "upi", "online", "wallet"] },
+        "status": { "type": "string", "enum": ["pending", "succeeded", "failed", "refunded"] },
+        "provider": { "type": "string", "maxLength": 64 },
+        "providerTxId": { "type": "string", "maxLength": 128 },
+        "verifiedByProvider": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["rideId", "customerId", "amount", "method", "status", "verifiedByProvider", "createdAt", "updatedAt"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Ledger entry for customer or driver wallet credit/debit.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerType": { "type": "string", "enum": ["customer", "driver"] },
+        "amount": { "type": "number" },
+        "direction": { "type": "string", "enum": ["credit", "debit"] },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "referenceId": { "type": "string", "maxLength": 128 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "ownerType", "amount", "direction", "reason", "createdAt"]
+    },
+    "Payout": {
+      "title": "Payout",
+      "description": "Driver payout settlement request and verification state.",
+      "type": "object",
+      "properties": {
+        "driverId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "processing", "succeeded", "failed", "rejected"] },
+        "bankAccountMask": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "ifscCode": { "type": "string", "minLength": 4, "maxLength": 20 },
+        "providerPayoutId": { "type": "string", "maxLength": 128 },
+        "verifiedByProvider": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["driverId", "amount", "status", "bankAccountMask", "verifiedByProvider", "createdAt", "updatedAt"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Promotional discount coupon.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "minLength": 3, "maxLength": 32 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "discountType": { "type": "string", "enum": ["percentage", "flat"] },
+        "discountValue": { "type": "number" },
+        "maxDiscount": { "type": "number" },
+        "minFare": { "type": "number" },
+        "vehicleCategory": { "type": "string", "enum": ["all", "bike", "auto", "cab"] },
+        "city": { "type": "string", "maxLength": 80 },
+        "usageLimit": { "type": "number" },
+        "usedCount": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "title", "discountType", "discountValue", "vehicleCategory", "isActive", "createdAt", "updatedAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Customer, Driver, or SOS emergency support ticket.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "userType": { "type": "string", "enum": ["customer", "driver"] },
+        "rideId": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "status": { "type": "string", "enum": ["open", "in_progress", "resolved", "escalated"] },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "isSos": { "type": "boolean" },
+        "resolutionNote": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userType", "category", "priority", "status", "subject", "description", "isSos", "createdAt", "updatedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Customer, Driver, or Push campaign message.",
+      "type": "object",
+      "properties": {
+        "targetAudience": { "type": "string", "enum": ["customers", "drivers", "all"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "body": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "channel": { "type": "string", "enum": ["push", "in_app", "sms"] },
+        "campaignName": { "type": "string", "maxLength": 120 },
+        "status": { "type": "string", "enum": ["draft", "queued", "dispatched", "provider_not_configured"] },
+        "sentBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["targetAudience", "title", "body", "channel", "status", "createdAt"]
+    },
+    "ServiceZone": {
+      "title": "ServiceZone",
+      "description": "City operational zone and vehicle availability config.",
+      "type": "object",
+      "properties": {
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "zoneName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "state": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "isActive": { "type": "boolean" },
+        "bikeEnabled": { "type": "boolean" },
+        "autoEnabled": { "type": "boolean" },
+        "cabEnabled": { "type": "boolean" },
+        "centerLat": { "type": "number" },
+        "centerLng": { "type": "number" },
+        "radiusKm": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["city", "zoneName", "state", "isActive", "bikeEnabled", "autoEnabled", "cabEnabled", "createdAt", "updatedAt"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized Super Admin Panel user and assigned RBAC role.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 180 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "roleId": { "type": "string", "enum": ["super_admin", "operations_admin", "kyc_admin", "finance_admin", "support_admin", "marketing_admin", "read_only_admin"] },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "fullName", "roleId", "isActive", "createdAt", "updatedAt"]
+    },
+    "Role": {
+      "title": "Role",
+      "description": "RBAC role definition and module permissions.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 300 },
+        "permissions": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "label", "permissions", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable admin audit log for sensitive operations.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 180 },
+        "actorRole": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "action": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "entityType": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "entityId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "summary": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "actorRole", "action", "entityType", "entityId", "createdAt"]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "Platform-wide configuration settings.",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "value": { "type": "string", "maxLength": 1000 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["key", "value", "category", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/profiles/{profileId}": { "schema": { "$ref": "#/entities/Profile" }, "description": "User profiles" },
+    "/customers/{customerId}": { "schema": { "$ref": "#/entities/Customer" }, "description": "Customers" },
+    "/drivers/{driverId}": { "schema": { "$ref": "#/entities/Driver" }, "description": "Drivers" },
+    "/vehicles/{vehicleId}": { "schema": { "$ref": "#/entities/Vehicle" }, "description": "Vehicles" },
+    "/driver_documents/{documentId}": { "schema": { "$ref": "#/entities/DriverDocument" }, "description": "Driver KYC and vehicle documents" },
+    "/rides/{rideId}": { "schema": { "$ref": "#/entities/Ride" }, "description": "Rides" },
+    "/ride_events/{eventId}": { "schema": { "$ref": "#/entities/RideEvent" }, "description": "Ride lifecycle events" },
+    "/driver_locations/{driverId}": { "schema": { "$ref": "#/entities/DriverLocation" }, "description": "Authorized live driver GPS" },
+    "/fare_configs/{configId}": { "schema": { "$ref": "#/entities/FareConfig" }, "description": "Fare and commission configs" },
+    "/payments/{paymentId}": { "schema": { "$ref": "#/entities/Payment" }, "description": "Payments ledger" },
+    "/wallet_transactions/{txId}": { "schema": { "$ref": "#/entities/WalletTransaction" }, "description": "Wallet ledger" },
+    "/payouts/{payoutId}": { "schema": { "$ref": "#/entities/Payout" }, "description": "Driver payouts" },
+    "/coupons/{couponId}": { "schema": { "$ref": "#/entities/Coupon" }, "description": "Coupons" },
+    "/support_tickets/{ticketId}": { "schema": { "$ref": "#/entities/SupportTicket" }, "description": "Support & SOS tickets" },
+    "/notifications/{notificationId}": { "schema": { "$ref": "#/entities/Notification" }, "description": "Notifications & campaigns" },
+    "/service_zones/{zoneId}": { "schema": { "$ref": "#/entities/ServiceZone" }, "description": "City service zones" },
+    "/admin_users/{adminId}": { "schema": { "$ref": "#/entities/AdminUser" }, "description": "Admin users" },
+    "/roles/{roleId}": { "schema": { "$ref": "#/entities/Role" }, "description": "RBAC roles" },
+    "/audit_logs/{logId}": { "schema": { "$ref": "#/entities/AuditLog" }, "description": "Audit logs" },
+    "/system_settings/{settingId}": { "schema": { "$ref": "#/entities/SystemSetting" }, "description": "System settings" }
+  }
+}

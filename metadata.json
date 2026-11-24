@@ -1,0 +1,6 @@
+{
+  "name": "SHINE CAB Super Admin Panel",
+  "description": "Enterprise mobility operations, fleet governance, fare engine, live ride map, and finance control panel for SHINE CAB.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
